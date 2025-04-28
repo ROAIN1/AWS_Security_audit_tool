@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AWS Security Audit Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; padding: 30px; }
+    h1 { color: #333; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    th, td { border: 1px solid #ccc; padding: 12px; text-align: left; }
+    th { background-color: #e9e9e9; font-weight: bold; }
+    tbody tr:nth-child(odd) { background-color: #f9f9f9; }
+    tbody tr:hover { background-color: #e0e0e0; }
+    .critical { background-color: #ffebee; } /* Light red */
+    .high { background-color: #fff3e0; }    /* Light orange */
+    .medium { background-color: #e1f5fe; }   /* Light blue */
+    .low { background-color: #f1f8e9; }      /* Light green */
+    .info { background-color: #e8eaf6; }     /* Light purple */
+    .error { background-color: #ffcdd2; }    /* Lighter red for errors */
+  </style>
+</head>
+<body>
+  <h1>AWS Security Audit – Latest Findings</h1>
+  <p>Last updated: <span id="lastUpdated">Loading...</span></p>
+  <table id="reportTable">
+    <thead>
+      <tr>
+        <th>Severity</th>
+        <th>Check</th>
+        <th>Resource Type</th>
+        <th>Resource ID</th>
+        <th>Description</th>
+        <th>Region</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      </tbody>
+  </table>
+  <script>
+    // Simple CSV parsing function (handles basic comma separated values)
+    function parseCSV(text) {
+        const lines = text.trim().split('\n');
+        if (lines.length <= 1) return []; // Only headers or empty
+
+        // Assuming the headers are the first line and match the keys in your desired objects
+        const headers = lines[0].split(',').map(header => header.trim().replace(/"/g, '')); // Clean up potential quotes
+
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map(value => value.trim().replace(/"/g, '')); // Clean up potential quotes
+            if (values.length === headers.length) {
+                let item = {};
+                for (let j = 0; j < headers.length; j++) {
+                    item[headers[j]] = values[j];
+                }
+                data.push(item);
+            } else {
+                 console.warn("Skipping row due to inconsistent column count:", lines[i]);
+            }
+        }
+        return data;
+    }
+
+
+    async function loadReport() {
+      const lastUpdatedSpan = document.getElementById('lastUpdated');
+      lastUpdatedSpan.textContent = 'Fetching latest report...';
+      try {
+        // --- S3 bucket name replaced here ---
+        const bucketName = "rk-security-audit-logs-83749";
+        const reportUrl = `https://${bucketName}.s3.amazonaws.com/audit-reports/latest.csv`; // Fetching latest.csv file
+
+        console.log(`Attempting to fetch: ${reportUrl}`);
+
+        const response = await fetch(reportUrl);
+
+        if (!response.ok) {
+            // Handle specific HTTP errors
+            if (response.status === 403) {
+                throw new Error("Access Denied. Check S3 bucket policy or object permissions.");
+            }
+            if (response.status === 404) {
+                 throw new Error("Report file (latest.csv) not found. Has the audit run yet, or is the bucket name incorrect?");
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const csvText = await response.text();
+        const findings = parseCSV(csvText); // Parse the CSV text
+
+        const tbody = document.querySelector("#reportTable tbody");
+        tbody.innerHTML = ''; // Clear loading message or previous content
+
+        if (!findings || findings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7">✅ No security issues detected.</td></tr>';
+            lastUpdatedSpan.textContent = 'No findings in the latest run.';
+        } else {
+            // Sort findings by Severity (Critical first) - Optional but helpful
+            const severityOrder = { 'Critical': 1, 'High': 2, 'Medium': 3, 'Low': 4, 'Info': 5, 'ERROR': 6 };
+            // Ensure objects have a Severity property before sorting for sorting to work
+            findings.sort((a, b) => (severityOrder[a.Severity] || 7) - (severityOrder[b.Severity] || 7));
+
+
+            findings.forEach(finding => {
+              const row = document.createElement("tr");
+              // Use severity for CSS class, handle potential missing severity gracefully
+              const severityClass = finding.Severity ? finding.Severity.toLowerCase() : 'info';
+               // Handle potential empty strings from CSV parsing
+              row.className = severityClass || 'info';
+
+
+              row.innerHTML = `
+                <td>${finding.Severity || 'N/A'}</td>
+                <td>${finding.CheckName || 'N/A'}</td>
+                <td>${finding.ResourceType || 'N/A'}</td>
+                <td>${finding.ResourceID || 'N/A'}</td>
+                <td>${finding.FindingDescription || 'No description'}</td>
+                <td>${finding.Region || 'N/A'}</td>
+                <td>${finding.Timestamp ? new Date(finding.Timestamp).toLocaleString() : 'N/A'}</td>
+              `;
+              tbody.appendChild(row);
+            });
+             // Attempt to get the latest timestamp from the first finding or any finding
+             const latestTimestamp = findings[0]?.Timestamp || findings.find(f => f.Timestamp)?.Timestamp;
+            lastUpdatedSpan.textContent = latestTimestamp ? new Date(latestTimestamp).toLocaleString() : 'N/A';
+        }
+
+
+      } catch (error) {
+        console.error("Error loading report:", error);
+        document.body.innerHTML += `<p style='color: red;'>Could not load latest report: ${error.message}</p>`;
+        lastUpdatedSpan.textContent = 'Failed to load report.';
+      }
+    }
+
+    loadReport(); // Load the report when the page loads
+    // Optional: Reload report periodically
+    // setInterval(loadReport, 60000); // Reload every 60 seconds
+  </script>
+</body>
+</html>
