@@ -16,7 +16,7 @@ Critical Alerts: Sends notifications via Amazon SNS for critical security findin
 Serverless Architecture: Cost-effective and scalable using managed AWS services.
 ArchitectureThe tool utilizes a serverless architecture pattern:
 # graph TD
-   A[EventBridge Schedule] --> B(AWS Lambda - Audit Function);
+   %% A[EventBridge Schedule] --> B(AWS Lambda - Audit Function);
      B --> C(AWS SDK - Boto3);
      C --> D(AWS S3 - List/Get Buckets);
      C --> E(AWS EC2 - Describe Instances/SGs);
@@ -28,10 +28,7 @@ ArchitectureThe tool utilizes a serverless architecture pattern:
      I --> K(S3 Static Website Hosting);
      K --> L(User Browser - Dashboard);
 
-     %% Styling (Optional - for better rendering in some Markdown viewers)
-     classDef default fill:#f9f,stroke:#333,stroke-width:2px;
-     class A,B,C,D,E,F,G,H,I,J,K,L default;
-
+     
  EventBridge: Triggers the Lambda function on a schedule.
  Lambda: Executes the audit logic by calling various AWS APIs via Boto3.
  S3, EC2, IAM, Access Analyzer: Services audited by the Lambda function.
@@ -48,7 +45,7 @@ ArchitectureThe tool utilizes a serverless architecture pattern:
  Go to the IAM Console -> Policies -> Create Policy.
  Select the JSON tab.
  Paste the following policy document, which is tailored to your resources (rk-security-audit-logs-83749, SecurityFindings, CriticalSecurityAlerts), Account ID (------------), and Region (ap-south-1).
-{
+%% {
     "Version": "2012-10-17",
     "Statement": [
         {
